@@ -196,11 +196,12 @@ st.title("✈️ Flight Delay Advisor")
 
 col1, col2, col3 = st.columns([1, 1, 1])
 with col1:
-    iata_dep, origin = airport_selector("Select Departure Airport")
+    _, dep_icao = airport_selector("Departure Airport")
 with col2:
-    iata_arr, destination = airport_selector("Select Arrival Airport")
+    _, arr_icao = airport_selector("Arrival Airport")
 with col3:
     days_back = st.slider("Past days (with flights)", 3, 30, 7)
+
 
 # --------------------------- MAIN LOGIC --------------------------- #
 if st.button("Fetch Flights"):
