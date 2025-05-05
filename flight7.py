@@ -38,29 +38,6 @@ def load_airports():
 
 airports_df = load_airports()
 
-def airport_selector(label):
-    choices = airports_df["label"].tolist()
-    search_input = st.text_input(label, placeholder="Type city, IATA, or ICAO...", key=f"search_{label}")
-
-    if search_input:
-        matches = process.extract(search_input, choices, limit=10)
-        options = [match[0] for match in matches]
-    else:
-        options = choices[:20]  # optional: show default list when empty
-
-    if not options:
-        st.warning("No matching airports.")
-        return "", ""
-
-    selected = st.selectbox(" ", options, key=f"select_{label}")
-
-    try:
-        code_part = selected.split("(")[-1].split(")")[0]
-        iata, icao = [x.strip() for x in code_part.split("/")]
-        return iata, icao
-    except:
-        return "", ""
-
 
 # ------------------------ LOAD LOGO MAP ----------------------- #
 GITHUB_USERNAME = "nickair1992"
