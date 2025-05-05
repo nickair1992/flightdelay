@@ -8,6 +8,32 @@ from datetime import datetime, timedelta
 import requests
 import streamlit as st
 from PIL import Image
+from fuzzywuzzy import process
+
+def airport_selector(label):
+    st.markdown(f"**{label}**")
+    search_input = st.text_input(f"{label} - Search by city, IATA, or ICAO", key=label)
+
+    if search_input:
+        choices = airports_df["label"].tolist()
+        matches = process.extract(search_input, choices, limit=10)
+        options = [match[0] for match in matches]
+    else:
+        options = airports_df["label"].tolist()
+
+    if not options:
+        st.warning("No matching airports.")
+        return "", ""
+
+    selected = st.selectbox(f"Matching results for {label}", options, key=f"select_{label}")
+
+    try:
+        code_part = selected.split("(")[-1].split(")")[0]
+        iata, icao = [x.strip() for x in code_part.split("/")]
+        return iata, icao
+    except:
+        return "", ""
+
 import pandas as pd
 
 # --------------------------- CONFIG --------------------------- #
@@ -19,23 +45,34 @@ AIRPORT_CSV_URL = "https://raw.githubusercontent.com/nickair1992/flightdelay/mas
 # --------------------- LOAD AIRPORT CSV ----------------------- #
 @st.cache_data
 def load_airports():
-    df = pd.read_csv(AIRPORT_CSV_URL)
-    df.columns = [col.lower().strip() for col in df.columns]
-    df["label"] = df.apply(lambda row: f"{row['city']} - {row['name']} ({row['iata']} / {row['icao']})", axis=1)
+    df = pd.read_csv("https://raw.githubusercontent.com/nickair1992/flightdelay/master/airlines-logos-dataset-master/airportlist.csv")
+    
+    # Make sure columns are clean
+    df.columns = [col.strip().lower() for col in df.columns]
+
+    required_cols = {"city", "name", "iata", "icao"}
+    if not required_cols.issubset(df.columns):
+        st.error(f"Missing required columns: {required_cols - set(df.columns)}")
+        st.stop()
+
+    df["label"] = df.apply(
+        lambda row: f"{row['city']} - {row['name']} ({row['iata']} / {row['icao']})",
+        axis=1
+    )
     return df
 
 airports_df = load_airports()
 
 def airport_selector(label):
     st.markdown(f"**{label}**")
-    search_input = st.text_input(f"{label} - Type to search", key=label)
+    search_input = st.text_input(f"{label} - Search by city, IATA, or ICAO", key=label)
 
     if search_input:
-        matches = airports_df[airports_df["label"].str.contains(search_input, case=False, na=False)]
+        choices = airports_df["label"].tolist()
+        matches = process.extract(search_input, choices, limit=10)
+        options = [match[0] for match in matches]
     else:
-        matches = airports_df
-
-    options = matches["label"].tolist()
+        options = airports_df["label"].tolist()
 
     if not options:
         st.warning("No matching airports.")
