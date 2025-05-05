@@ -53,17 +53,24 @@ def fetch_airports():
         )
         response.raise_for_status()
         airports_data = response.json().get("data", [])
-        airport_dict = {
-            f"{airport['city_name']}, {airport['country_name']} ({airport['icao']})": airport['icao']
+        airport_list = [
+            {"display": f"{airport['city_name']}, {airport['country_name']} ({airport['icao']})", "icao": airport['icao']}
             for airport in airports_data if airport.get('icao') and airport.get('city_name') and airport.get('country_name')
-        }
-        return airport_dict
+        ]
+        return airport_list
     except requests.exceptions.RequestException as e:
         st.error(f"Error loading airport data: {e}")
-        return {}
+        return []
 
-airport_options = fetch_airports()
-airport_list = sorted(airport_options.keys())
+airport_data = fetch_airports()
+
+def filter_airports(query, airport_list):
+    if not query:
+        return airport_list[:10]  # Show a few initial options
+    query = query.lower()
+    return [
+        airport for airport in airport_list if query in airport["display"].lower()
+    ][:10] # Limit to a reasonable number of suggestions
 
 # ---------------------  UTILITY FUNCTIONS  -------------------- #
 
@@ -189,6 +196,29 @@ html, body, [class*="css"] {
 .risk-badge {
     font-size: 0.9rem !important;
 }
+.st-ag { /* Style the text input to look a bit more like a selectbox */
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+.suggestions-box {
+    border: 1px solid #ccc;
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    background-color: white;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 10; /* Ensure it's above other elements */
+    position: absolute;
+    width: 100%;
+}
+.suggestion-item {
+    padding: 8px;
+    cursor: pointer;
+}
+.suggestion-item:hover {
+    background-color: #f0f0f0;
+}
 </style>
 """,
     unsafe_allow_html=True,
@@ -196,18 +226,56 @@ html, body, [class*="css"] {
 
 st.title("✈️ Flight Delay Advisor")
 col1, col2, col3 = st.columns([1, 1, 1])
+
 with col1:
-    origin_option = st.selectbox("Departure Airport", airport_list)
-    origin = airport_options.get(origin_option, "")
+    departure_query = st.text_input("Departure Airport", "", key="departure_airport")
+    filtered_departure_airports = filter_airports(departure_query, airport_data)
+    selected_departure = None
+    if filtered_departure_airports:
+        suggestion_html = "<div class='suggestions-box'>"
+        for airport in filtered_departure_airports:
+            suggestion_html += f"<div class='suggestion-item' onclick='document.getElementById(\"departure_airport\").value=\"{airport['display']}\";'>{airport['display']}</div>"
+        suggestion_html += "</div>"
+        st.markdown(suggestion_html, unsafe_allow_html=True)
+        # Capture the selected value based on direct input
+        for airport in filtered_departure_airports:
+            if departure_query == airport['display']:
+                selected_departure = airport['icao']
+                break
+        if not selected_departure and departure_query and filtered_departure_airports:
+            st.info("Showing top suggestions. Type to filter further.")
+    elif departure_query:
+        st.info("No matching airports found.")
+
 with col2:
-    destination_option = st.selectbox("Arrival Airport", airport_list)
-    destination = airport_options.get(destination_option, "")
+    arrival_query = st.text_input("Arrival Airport", "", key="arrival_airport")
+    filtered_arrival_airports = filter_airports(arrival_query, airport_data)
+    selected_arrival = None
+    if filtered_arrival_airports:
+        suggestion_html = "<div class='suggestions-box'>"
+        for airport in filtered_arrival_airports:
+            suggestion_html += f"<div class='suggestion-item' onclick='document.getElementById(\"arrival_airport\").value=\"{airport['display']}\";'>{airport['display']}</div>"
+        suggestion_html += "</div>"
+        st.markdown(suggestion_html, unsafe_allow_html=True)
+        # Capture the selected value based on direct input
+        for airport in filtered_arrival_airports:
+            if arrival_query == airport['display']:
+                selected_arrival = airport['icao']
+                break
+        if not selected_arrival and arrival_query and filtered_arrival_airports:
+            st.info("Showing top suggestions. Type to filter further.")
+    elif arrival_query:
+        st.info("No matching airports found.")
+
 with col3:
     days_back = st.slider("Past days (with flights)", 3, 30, 7)
 
 if st.button("Fetch Flights"):
+    origin = selected_departure
+    destination = selected_arrival
+
     if not origin or not destination:
-        st.warning("Please select both departure and arrival airports.")
+        st.warning("Please select both departure and arrival airports from the suggestions.")
         st.stop()
 
     grouped_flights_raw = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
@@ -245,7 +313,7 @@ if st.button("Fetch Flights"):
             all_delays.append(999 if bad else delay or 0)
 
     if not grouped_flights_raw:
-        st.warning("No flights found for the selected airports.")
+        st.warning(f"No flights found for {departure_query} ({origin}) to {arrival_query} ({destination}).")
         st.stop()
 
     st.subheader("📊 Summary")
@@ -292,7 +360,7 @@ if st.button("Fetch Flights"):
             avg_delay_flight = avg(all_delays_flight)
             box_border_color = delay_color(avg_delay_flight)
             # Assuming the airline code is the same for all flights of an airline for logo retrieval
-            first_airline_code = next(iter(next(iter(schedules.values()))))['airline_code'] if schedules else None
+            first_airline_code = next(iter(schedules.values())))['airline_code'] if schedules else None
             logo_img = get_logo(first_airline_code)
             logo_html = f"<img src='data:image/png;base64,{img_b64(logo_img)}' class='airline-logo' style='margin-right: 10px;'>" if logo_img else ""
 
