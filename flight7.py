@@ -42,7 +42,7 @@ def airport_selector(label):
     st.markdown(f"**{label}**")
 
     all_options = airports_df["label"].tolist()
-    options = ["-- Select Airport --"] + sorted(all_options)
+    options = [""] + sorted(all_options)
 
     selected = st.selectbox(
         f"{label} (Search by city, airport name, IATA, or ICAO)",
