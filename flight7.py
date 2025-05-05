@@ -12,11 +12,12 @@ from PIL import Image
 # --------------------------- CONFIG --------------------------- #
 API_KEY = st.secrets["AVIATIONSTACK_API_KEY"]
 BASE_URL = "http://api.aviationstack.com/v1/flights"
+AIRPORTS_API_URL = "http://api.aviationstack.com/v1/airports"
 
 # ------------------------ LOAD LOGO MAP ----------------------- #
 GITHUB_USERNAME = "nickair1992"  # Replace with your GitHub username
-GITHUB_REPO_NAME = "flightdelay"        # Replace with your repository name
-GITHUB_BRANCH = "master"                   # Or "main" if that's your main branch
+GITHUB_REPO_NAME = "flightdelay"          # Replace with your repository name
+GITHUB_BRANCH = "master"                    # Or "main" if that's your main branch
 AIRLINES_JSON_PATH = "airlines-logos-dataset-master/airlines.json"
 LOGO_IMAGE_PATH = "airlines-logos-dataset-master/images"
 AIRLINES_JSON_URL = f"https://raw.githubusercontent.com/{GITHUB_USERNAME}/{GITHUB_REPO_NAME}/{GITHUB_BRANCH}/{AIRLINES_JSON_PATH}"
@@ -40,6 +41,29 @@ for row in airline_json:
         airline_logos[row["iata_code"].upper()] = file_name
     if row.get("icao_code"):
         airline_logos[row["icao_code"].upper()] = file_name
+
+# ------------------------ LOAD AIRPORT DATA ----------------------- #
+@st.cache_data
+def fetch_airports():
+    try:
+        response = requests.get(
+            AIRPORTS_API_URL,
+            params={"access_key": API_KEY},
+            timeout=10,
+        )
+        response.raise_for_status()
+        airports_data = response.json().get("data", [])
+        airport_dict = {
+            f"{airport['city_name']}, {airport['country_name']} ({airport['icao']})": airport['icao']
+            for airport in airports_data if airport.get('icao') and airport.get('city_name') and airport.get('country_name')
+        }
+        return airport_dict
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error loading airport data: {e}")
+        return {}
+
+airport_options = fetch_airports()
+airport_list = sorted(airport_options.keys())
 
 # ---------------------  UTILITY FUNCTIONS  -------------------- #
 
@@ -72,7 +96,7 @@ def delay_color(val):
         return "#f94144"  # Red
     if val >= 15:
         return "#fcca46"  # Yellow
-    return "#70d86b"    # Green
+    return "#70d86b"     # Green
 
 BADGE_COLORS = {"green": "#70d86b", "yellow": "#fcca46", "red": "#f94144", "grey": "#6c757d"}
 
@@ -173,13 +197,19 @@ html, body, [class*="css"] {
 st.title("✈️ Flight Delay Advisor")
 col1, col2, col3 = st.columns([1, 1, 1])
 with col1:
-    origin = st.text_input("Departure ICAO", "")
+    origin_option = st.selectbox("Departure Airport", airport_list)
+    origin = airport_options.get(origin_option, "")
 with col2:
-    destination = st.text_input("Arrival ICAO", "")
+    destination_option = st.selectbox("Arrival Airport", airport_list)
+    destination = airport_options.get(destination_option, "")
 with col3:
     days_back = st.slider("Past days (with flights)", 3, 30, 7)
 
 if st.button("Fetch Flights"):
+    if not origin or not destination:
+        st.warning("Please select both departure and arrival airports.")
+        st.stop()
+
     grouped_flights_raw = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
     all_delays = []
     checked, valid = 0, 0
@@ -215,7 +245,7 @@ if st.button("Fetch Flights"):
             all_delays.append(999 if bad else delay or 0)
 
     if not grouped_flights_raw:
-        st.warning("No flights found.")
+        st.warning("No flights found for the selected airports.")
         st.stop()
 
     st.subheader("📊 Summary")
@@ -307,18 +337,18 @@ if st.button("Fetch Flights"):
 
             st.markdown(
                 f"""
-                            <div class='overall-info'>
-                                <div>Overall Avg Delay: <span class='delay-metric'>{avg_delay_flight:.1f} min</span></div>
-                                <div>Overall Max Delay: <span class='delay-metric'>{max(all_delays_flight) if all_delays_flight else 0:.1f} min</span></div>
-                                <div>Overall Risk: <span class='risk-badge'>{badge({
-                                    "#70d86b": "Low Delay Risk",
-                                    "#fcca46": "Moderate Delay Risk",
-                                    "#f94144": "High Delay Risk",
-                                    "#6c757d": "No Data"
-                                }.get(box_border_color, "Unknown Risk"), box_border_color)}</span></div>
-                            </div>
-                        </div>
-                    """,
+                                    <div class='overall-info'>
+                                        <div>Overall Avg Delay: <span class='delay-metric'>{avg_delay_flight:.1f} min</span></div>
+                                        <div>Overall Max Delay: <span class='delay-metric'>{max(all_delays_flight) if all_delays_flight else 0:.1f} min</span></div>
+                                        <div>Overall Risk: <span class='risk-badge'>{badge({
+                                            "#70d86b": "Low Delay Risk",
+                                            "#fcca46": "Moderate Delay Risk",
+                                            "#f94144": "High Delay Risk",
+                                            "#6c757d": "No Data"
+                                        }.get(box_border_color, "Unknown Risk"), box_border_color)}</span></div>
+                                    </div>
+                                </div>
+                                """,
                 unsafe_allow_html=True,
             )
 
