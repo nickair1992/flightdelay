@@ -13,7 +13,8 @@ import pandas as pd
 # --------------------------- CONFIG --------------------------- #
 API_KEY = st.secrets["AVIATIONSTACK_API_KEY"]
 BASE_URL = "http://api.aviationstack.com/v1/flights"
-AIRPORT_CSV_URL = "https://github.com/nickair1992/flightdelay/blob/master/airlines-logos-dataset-master/airportlist.csv"
+AIRPORT_CSV_URL = "https://raw.githubusercontent.com/nickair1992/flightdelay/master/airlines-logos-dataset-master/airportlist.csv"
+
 
 # --------------------- LOAD AIRPORT CSV ----------------------- #
 @st.cache_data
