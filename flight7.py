@@ -40,26 +40,25 @@ airports_df = load_airports()
 
 def airport_selector(label):
     st.markdown(f"**{label}**")
-    
-    # All airport labels
+
     all_options = airports_df["label"].tolist()
-    options = ["-- Select Airport --"] + sorted(all_options)  # Add placeholder first
+    options = ["-- Select Airport --"] + sorted(all_options)
 
     selected = st.selectbox(
         f"{label} (Search by city, airport name, IATA, or ICAO)",
         options=options,
         index=0,
-        key=label
+        key=label,
     )
 
-    # Handle placeholder selection
     if selected == "-- Select Airport --":
         return "", ""
 
     try:
+        # Extract codes from the selected string (IATA / ICAO)
         code_part = selected.split("(")[-1].split(")")[0]
         iata, icao = [x.strip() for x in code_part.split("/")]
-        return icao, iata
+        return iata, icao
     except:
         return "", ""
 
