@@ -40,28 +40,23 @@ airports_df = load_airports()
 
 def airport_selector(label):
     st.markdown(f"**{label}**")
-    search_input = st.text_input(f"{label} - Type city, airport name, IATA or ICAO code", key=label)
-
-    # Generate fuzzy matches if user types something
-    if search_input:
-        all_options = airports_df["label"].tolist()
-        matches = process.extract(search_input, all_options, limit=10)
-        options = [match[0] for match in matches]
-    else:
-        options = airports_df["label"].tolist()
-
-    if not options:
-        st.warning("No matching airports found.")
-        return "", ""
-
-    selected = st.selectbox("", options, key=f"select_{label}")
+    all_options = airports_df["label"].tolist()
+    
+    # Display a single dropdown with autocomplete and fuzzy-matching behavior
+    search_input = st.selectbox(
+        f"{label} (Search by city, airport name, IATA, or ICAO)",
+        options=sorted(all_options),
+        index=0,
+        key=label
+    )
 
     try:
-        code_part = selected.split("(")[-1].split(")")[0]
+        code_part = search_input.split("(")[-1].split(")")[0]
         iata, icao = [x.strip() for x in code_part.split("/")]
         return iata, icao
     except:
         return "", ""
+
 
 
 # ------------------------ LOAD LOGO MAP ----------------------- #
