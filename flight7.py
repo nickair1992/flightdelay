@@ -8,15 +8,36 @@ from datetime import datetime, timedelta
 import requests
 import streamlit as st
 from PIL import Image
+import pandas as pd
 
 # --------------------------- CONFIG --------------------------- #
 API_KEY = st.secrets["AVIATIONSTACK_API_KEY"]
 BASE_URL = "http://api.aviationstack.com/v1/flights"
+AIRPORT_CSV_URL = "https://github.com/nickair1992/flightdelay/blob/master/airlines-logos-dataset-master/airportlist.csv"
+
+# --------------------- LOAD AIRPORT CSV ----------------------- #
+@st.cache_data
+def load_airports():
+    df = pd.read_csv(AIRPORT_CSV_URL)
+    df.columns = [col.lower().strip() for col in df.columns]
+    df["label"] = df.apply(lambda row: f"{row['city']} - {row['name']} ({row['iata']} / {row['icao']})", axis=1)
+    return df
+
+airports_df = load_airports()
+
+def airport_selector(label):
+    selected = st.selectbox(label, airports_df["label"].tolist())
+    try:
+        code_part = selected.split("(")[-1].split(")")[0]
+        iata, icao = [x.strip() for x in code_part.split("/")]
+        return iata, icao
+    except:
+        return "", ""
 
 # ------------------------ LOAD LOGO MAP ----------------------- #
-GITHUB_USERNAME = "nickair1992"  # Replace with your GitHub username
-GITHUB_REPO_NAME = "flightdelay"          # Replace with your repository name
-GITHUB_BRANCH = "master"                    # Or "main" if that's your main branch
+GITHUB_USERNAME = "nickair1992"
+GITHUB_REPO_NAME = "flightdelay"
+GITHUB_BRANCH = "master"
 AIRLINES_JSON_PATH = "airlines-logos-dataset-master/airlines.json"
 LOGO_IMAGE_PATH = "airlines-logos-dataset-master/images"
 AIRLINES_JSON_URL = f"https://raw.githubusercontent.com/{GITHUB_USERNAME}/{GITHUB_REPO_NAME}/{GITHUB_BRANCH}/{AIRLINES_JSON_PATH}"
@@ -24,11 +45,11 @@ GITHUB_RAW_URL = f"https://raw.githubusercontent.com/{GITHUB_USERNAME}/{GITHUB_R
 
 try:
     response = requests.get(AIRLINES_JSON_URL)
-    response.raise_for_status()  # Raise an exception for bad status codes
+    response.raise_for_status()
     airline_json = response.json()["data"]
 except requests.exceptions.RequestException as e:
     st.error(f"Error loading airlines.json from GitHub: {e}")
-    airline_json = []  # Initialize to an empty list in case of error
+    airline_json = []
 
 airline_logos = {}
 for row in airline_json:
@@ -42,7 +63,6 @@ for row in airline_json:
         airline_logos[row["icao_code"].upper()] = file_name
 
 # ---------------------  UTILITY FUNCTIONS  -------------------- #
-
 def fetch_flights(dep, arr, date_str):
     try:
         r = requests.get(
@@ -67,12 +87,12 @@ def calculate_delay(f):
 
 def delay_color(val):
     if val is None:
-        return "#6c757d"  # Grey
+        return "#6c757d"
     if val >= 45:
-        return "#f94144"  # Red
+        return "#f94144"
     if val >= 15:
-        return "#fcca46"  # Yellow
-    return "#70d86b"     # Green
+        return "#fcca46"
+    return "#70d86b"
 
 BADGE_COLORS = {"green": "#70d86b", "yellow": "#fcca46", "red": "#f94144", "grey": "#6c757d"}
 
@@ -105,9 +125,8 @@ def fmt_time(ts):
         return "--:--"
 
 # ------------------------- STREAMLIT UI ----------------------- #
-st.set_page_config(page_title="Flight Delay Advisor", layout="wide")  # Using wide layout for more space
-st.markdown(
-    """
+st.set_page_config(page_title="Flight Delay Advisor", layout="wide")
+st.markdown("""
 <link href='https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap' rel='stylesheet'>
 <style>
 html, body, [class*="css"] {
@@ -166,23 +185,24 @@ html, body, [class*="css"] {
     font-size: 0.9rem !important;
 }
 </style>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
 st.title("✈️ Flight Delay Advisor")
+
 col1, col2, col3 = st.columns([1, 1, 1])
 with col1:
-    origin = st.text_input("Departure ICAO", "")
+    iata_dep, origin = airport_selector("Select Departure Airport")
 with col2:
-    destination = st.text_input("Arrival ICAO", "")
+    iata_arr, destination = airport_selector("Select Arrival Airport")
 with col3:
     days_back = st.slider("Past days (with flights)", 3, 30, 7)
 
+# --------------------------- MAIN LOGIC --------------------------- #
 if st.button("Fetch Flights"):
     grouped_flights_raw = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
     all_delays = []
     checked, valid = 0, 0
+
     while valid < days_back and checked < 90:
         date_dt = datetime.utcnow() - timedelta(days=checked)
         checked += 1
@@ -240,9 +260,9 @@ if st.button("Fetch Flights"):
     )
 
     c1, c2, c3 = st.columns(3)
-    c1.metric("Flights", total, help="Total number of flights analysed")
-    c2.metric("Delays >15min", f"{d15} ({d15/total:.0%})", help="Flights delayed more than 15 minutes")
-    c3.metric("Delays >45min", f"{d45} ({d45/total:.0%})", help="Flights delayed more than 45 minutes")
+    c1.metric("Flights", total)
+    c2.metric("Delays >15min", f"{d15} ({d15/total:.0%})")
+    c3.metric("Delays >45min", f"{d45} ({d45/total:.0%})")
 
     st.subheader("🛫 Breakdown")
     day_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -261,7 +281,6 @@ if st.button("Fetch Flights"):
             all_delays_flight = [entry['delay'] for sched_entries in schedules.values() for entry in sched_entries if entry['delay'] is not None]
             avg_delay_flight = avg(all_delays_flight)
             box_border_color = delay_color(avg_delay_flight)
-            # Assuming the airline code is the same for all flights of an airline for logo retrieval
             first_airline_code = next(iter(next(iter(schedules.values()))))['airline_code'] if schedules else None
             logo_img = get_logo(first_airline_code)
             logo_html = f"<img src='data:image/png;base64,{img_b64(logo_img)}' class='airline-logo' style='margin-right: 10px;'>" if logo_img else ""
@@ -283,11 +302,7 @@ if st.button("Fetch Flights"):
                         delays_by_day[entry["day"]].append(entry["delay"])
 
                 st.markdown(
-                    f"""
-                    <div class='schedule-item'>
-                        <strong>{sched_key}</strong>
-                    </div>
-                    """,
+                    f"""<div class='schedule-item'><strong>{sched_key}</strong></div>""",
                     unsafe_allow_html=True,
                 )
                 days_for_schedule = sorted(list(delays_by_day.keys()), key=day_order.index)
@@ -307,19 +322,20 @@ if st.button("Fetch Flights"):
 
             st.markdown(
                 f"""
-                                    <div class='overall-info'>
-                                        <div>Overall Avg Delay: <span class='delay-metric'>{avg_delay_flight:.1f} min</span></div>
-                                        <div>Overall Max Delay: <span class='delay-metric'>{max(all_delays_flight) if all_delays_flight else 0:.1f} min</span></div>
-                                        <div>Overall Risk: <span class='risk-badge'>{badge({
-                                            "#70d86b": "Low Delay Risk",
-                                            "#fcca46": "Moderate Delay Risk",
-                                            "#f94144": "High Delay Risk",
-                                            "#6c757d": "No Data"
-                                        }.get(box_border_color, "Unknown Risk"), box_border_color)}</span></div>
-                                    </div>
-                                </div>
-                                """,
+                        <div class='overall-info'>
+                            <div>Overall Avg Delay: <span class='delay-metric'>{avg_delay_flight:.1f} min</span></div>
+                            <div>Overall Max Delay: <span class='delay-metric'>{max(all_delays_flight) if all_delays_flight else 0:.1f} min</span></div>
+                            <div>Overall Risk: <span class='risk-badge'>{badge({
+                                "#70d86b": "Low Delay Risk",
+                                "#fcca46": "Moderate Delay Risk",
+                                "#f94144": "High Delay Risk",
+                                "#6c757d": "No Data"
+                            }.get(box_border_color, "Unknown Risk"), box_border_color)}</span></div>
+                        </div>
+                    </div>
+                """,
                 unsafe_allow_html=True,
             )
 
     st.caption("Data from Aviationstack")
+
