@@ -27,13 +27,29 @@ def load_airports():
 airports_df = load_airports()
 
 def airport_selector(label):
-    selected = st.selectbox(label, airports_df["label"].tolist())
+    st.markdown(f"**{label}**")
+    search_input = st.text_input(f"{label} - Type to search", key=label)
+
+    if search_input:
+        matches = airports_df[airports_df["label"].str.contains(search_input, case=False, na=False)]
+    else:
+        matches = airports_df
+
+    options = matches["label"].tolist()
+
+    if not options:
+        st.warning("No matching airports.")
+        return "", ""
+
+    selected = st.selectbox(f"Matching results for {label}", options, key=f"select_{label}")
+
     try:
         code_part = selected.split("(")[-1].split(")")[0]
         iata, icao = [x.strip() for x in code_part.split("/")]
         return iata, icao
     except:
         return "", ""
+
 
 # ------------------------ LOAD LOGO MAP ----------------------- #
 GITHUB_USERNAME = "nickair1992"
