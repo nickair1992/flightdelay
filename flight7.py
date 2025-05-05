@@ -40,22 +40,29 @@ airports_df = load_airports()
 
 def airport_selector(label):
     st.markdown(f"**{label}**")
-    all_options = airports_df["label"].tolist()
     
-    # Display a single dropdown with autocomplete and fuzzy-matching behavior
-    search_input = st.selectbox(
+    # All airport labels
+    all_options = airports_df["label"].tolist()
+    options = ["-- Select Airport --"] + sorted(all_options)  # Add placeholder first
+
+    selected = st.selectbox(
         f"{label} (Search by city, airport name, IATA, or ICAO)",
-        options=sorted(all_options),
+        options=options,
         index=0,
         key=label
     )
 
+    # Handle placeholder selection
+    if selected == "-- Select Airport --":
+        return "", ""
+
     try:
-        code_part = search_input.split("(")[-1].split(")")[0]
+        code_part = selected.split("(")[-1].split(")")[0]
         iata, icao = [x.strip() for x in code_part.split("/")]
         return iata, icao
     except:
         return "", ""
+
 
 
 
