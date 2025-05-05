@@ -9,34 +9,6 @@ import requests
 import streamlit as st
 from PIL import Image
 from fuzzywuzzy import process
-
-def airport_selector(label):
-    # Text input for typing
-    search_input = st.text_input(f"{label} (Search city, IATA, or ICAO)", key=label)
-
-    # If something is typed, filter the airport list
-    if search_input:
-        filtered_df = airports_df[airports_df["label"].str.contains(search_input, case=False, na=False)]
-    else:
-        filtered_df = airports_df
-
-    options = filtered_df["label"].tolist()
-
-    if not options:
-        st.warning("No matching airports.")
-        return "", ""
-
-    # Show filtered dropdown below the text box
-    selected = st.selectbox("", options, key=f"select_{label}")
-
-    try:
-        code_part = selected.split("(")[-1].split(")")[0]
-        iata, icao = [x.strip() for x in code_part.split("/")]
-        return iata, icao
-    except:
-        return "", ""
-
-
 import pandas as pd
 
 # --------------------------- CONFIG --------------------------- #
@@ -67,21 +39,17 @@ def load_airports():
 airports_df = load_airports()
 
 def airport_selector(label):
-    st.markdown(f"**{label}**")
-    search_input = st.text_input(f"{label} - Search by city, IATA, or ICAO", key=label)
+    choices = airports_df["label"].tolist()
 
-    if search_input:
-        choices = airports_df["label"].tolist()
-        matches = process.extract(search_input, choices, limit=10)
-        options = [match[0] for match in matches]
+    search = st.text_input(label, placeholder="Type city, IATA or ICAO...", key=f"search_{label}")
+
+    if search:
+        matches = process.extract(search, choices, limit=10)
+        filtered = [match[0] for match in matches]
     else:
-        options = airports_df["label"].tolist()
+        filtered = choices[:20]  # show a few default options if empty
 
-    if not options:
-        st.warning("No matching airports.")
-        return "", ""
-
-    selected = st.selectbox(f"Matching results for {label}", options, key=f"select_{label}")
+    selected = st.selectbox(" ", filtered, key=f"select_{label}")
 
     try:
         code_part = selected.split("(")[-1].split(")")[0]
@@ -89,6 +57,7 @@ def airport_selector(label):
         return iata, icao
     except:
         return "", ""
+
 
 
 # ------------------------ LOAD LOGO MAP ----------------------- #
