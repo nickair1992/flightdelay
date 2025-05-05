@@ -12,12 +12,11 @@ from PIL import Image
 # --------------------------- CONFIG --------------------------- #
 API_KEY = st.secrets["AVIATIONSTACK_API_KEY"]
 BASE_URL = "http://api.aviationstack.com/v1/flights"
-AIRPORTS_API_URL = "http://api.aviationstack.com/v1/airports"
 
 # ------------------------ LOAD LOGO MAP ----------------------- #
 GITHUB_USERNAME = "nickair1992"  # Replace with your GitHub username
-GITHUB_REPO_NAME = "flightdelay"          # Replace with your repository name
-GITHUB_BRANCH = "master"                    # Or "main" if that's your main branch
+GITHUB_REPO_NAME = "flightdelay"        # Replace with your repository name
+GITHUB_BRANCH = "master"                   # Or "main" if that's your main branch
 AIRLINES_JSON_PATH = "airlines-logos-dataset-master/airlines.json"
 LOGO_IMAGE_PATH = "airlines-logos-dataset-master/images"
 AIRLINES_JSON_URL = f"https://raw.githubusercontent.com/{GITHUB_USERNAME}/{GITHUB_REPO_NAME}/{GITHUB_BRANCH}/{AIRLINES_JSON_PATH}"
@@ -41,36 +40,6 @@ for row in airline_json:
         airline_logos[row["iata_code"].upper()] = file_name
     if row.get("icao_code"):
         airline_logos[row["icao_code"].upper()] = file_name
-
-# ------------------------ LOAD AIRPORT DATA ----------------------- #
-@st.cache_data
-def fetch_airports():
-    try:
-        response = requests.get(
-            AIRPORTS_API_URL,
-            params={"access_key": API_KEY},
-            timeout=10,
-        )
-        response.raise_for_status()
-        airports_data = response.json().get("data", [])
-        airport_list = [
-            {"display": f"{airport['city_name']}, {airport['country_name']} ({airport['icao']})", "icao": airport['icao']}
-            for airport in airports_data if airport.get('icao') and airport.get('city_name') and airport.get('country_name')
-        ]
-        return airport_list
-    except requests.exceptions.RequestException as e:
-        st.error(f"Error loading airport data: {e}")
-        return []
-
-airport_data = fetch_airports()
-
-def filter_airports(query, airport_list):
-    if not query:
-        return airport_list[:10]  # Show a few initial options
-    query = query.lower()
-    return [
-        airport for airport in airport_list if query in airport["display"].lower()
-    ][:10] # Limit to a reasonable number of suggestions
 
 # ---------------------  UTILITY FUNCTIONS  -------------------- #
 
@@ -103,7 +72,7 @@ def delay_color(val):
         return "#f94144"  # Red
     if val >= 15:
         return "#fcca46"  # Yellow
-    return "#70d86b"     # Green
+    return "#70d86b"    # Green
 
 BADGE_COLORS = {"green": "#70d86b", "yellow": "#fcca46", "red": "#f94144", "grey": "#6c757d"}
 
@@ -196,29 +165,6 @@ html, body, [class*="css"] {
 .risk-badge {
     font-size: 0.9rem !important;
 }
-.st-ag { /* Style the text input to look a bit more like a selectbox */
-    padding: 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-}
-.suggestions-box {
-    border: 1px solid #ccc;
-    border-top: none;
-    border-radius: 0 0 4px 4px;
-    background-color: white;
-    max-height: 200px;
-    overflow-y: auto;
-    z-index: 10; /* Ensure it's above other elements */
-    position: absolute;
-    width: 100%;
-}
-.suggestion-item {
-    padding: 8px;
-    cursor: pointer;
-}
-.suggestion-item:hover {
-    background-color: #f0f0f0;
-}
 </style>
 """,
     unsafe_allow_html=True,
@@ -226,58 +172,14 @@ html, body, [class*="css"] {
 
 st.title("✈️ Flight Delay Advisor")
 col1, col2, col3 = st.columns([1, 1, 1])
-
 with col1:
-    departure_query = st.text_input("Departure Airport", "", key="departure_airport")
-    filtered_departure_airports = filter_airports(departure_query, airport_data)
-    selected_departure = None
-    if filtered_departure_airports:
-        suggestion_html = "<div class='suggestions-box'>"
-        for airport in filtered_departure_airports:
-            suggestion_html += f"<div class='suggestion-item' onclick='document.getElementById(\"departure_airport\").value=\"{airport['display']}\";'>{airport['display']}</div>"
-        suggestion_html += "</div>"
-        st.markdown(suggestion_html, unsafe_allow_html=True)
-        # Capture the selected value based on direct input
-        for airport in filtered_departure_airports:
-            if departure_query == airport['display']:
-                selected_departure = airport['icao']
-                break
-        if not selected_departure and departure_query and filtered_departure_airports:
-            st.info("Showing top suggestions. Type to filter further.")
-    elif departure_query:
-        st.info("No matching airports found.")
-
+    origin = st.text_input("Departure ICAO", "")
 with col2:
-    arrival_query = st.text_input("Arrival Airport", "", key="arrival_airport")
-    filtered_arrival_airports = filter_airports(arrival_query, airport_data)
-    selected_arrival = None
-    if filtered_arrival_airports:
-        suggestion_html = "<div class='suggestions-box'>"
-        for airport in filtered_arrival_airports:
-            suggestion_html += f"<div class='suggestion-item' onclick='document.getElementById(\"arrival_airport\").value=\"{airport['display']}\";'>{airport['display']}</div>"
-        suggestion_html += "</div>"
-        st.markdown(suggestion_html, unsafe_allow_html=True)
-        # Capture the selected value based on direct input
-        for airport in filtered_arrival_airports:
-            if arrival_query == airport['display']:
-                selected_arrival = airport['icao']
-                break
-        if not selected_arrival and arrival_query and filtered_arrival_airports:
-            st.info("Showing top suggestions. Type to filter further.")
-    elif arrival_query:
-        st.info("No matching airports found.")
-
+    destination = st.text_input("Arrival ICAO", "")
 with col3:
     days_back = st.slider("Past days (with flights)", 3, 30, 7)
 
 if st.button("Fetch Flights"):
-    origin = selected_departure
-    destination = selected_arrival
-
-    if not origin or not destination:
-        st.warning("Please select both departure and arrival airports from the suggestions.")
-        st.stop()
-
     grouped_flights_raw = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
     all_delays = []
     checked, valid = 0, 0
@@ -313,7 +215,7 @@ if st.button("Fetch Flights"):
             all_delays.append(999 if bad else delay or 0)
 
     if not grouped_flights_raw:
-        st.warning(f"No flights found for {departure_query} ({origin}) to {arrival_query} ({destination}).")
+        st.warning("No flights found.")
         st.stop()
 
     st.subheader("📊 Summary")
@@ -360,7 +262,7 @@ if st.button("Fetch Flights"):
             avg_delay_flight = avg(all_delays_flight)
             box_border_color = delay_color(avg_delay_flight)
             # Assuming the airline code is the same for all flights of an airline for logo retrieval
-            first_airline_code = next(iter(schedules.values()))['airline_code'] if schedules else None
+            first_airline_code = next(iter(next(iter(schedules.values()))))['airline_code'] if schedules else None
             logo_img = get_logo(first_airline_code)
             logo_html = f"<img src='data:image/png;base64,{img_b64(logo_img)}' class='airline-logo' style='margin-right: 10px;'>" if logo_img else ""
 
@@ -405,18 +307,18 @@ if st.button("Fetch Flights"):
 
             st.markdown(
                 f"""
-                                    <div class='overall-info'>
-                                        <div>Overall Avg Delay: <span class='delay-metric'>{avg_delay_flight:.1f} min</span></div>
-                                        <div>Overall Max Delay: <span class='delay-metric'>{max(all_delays_flight) if all_delays_flight else 0:.1f} min</span></div>
-                                        <div>Overall Risk: <span class='risk-badge'>{badge({
-                                            "#70d86b": "Low Delay Risk",
-                                            "#fcca46": "Moderate Delay Risk",
-                                            "#f94144": "High Delay Risk",
-                                            "#6c757d": "No Data"
-                                        }.get(box_border_color, "Unknown Risk"), box_border_color)}</span></div>
-                                    </div>
-                                </div>
-                                """,
+                            <div class='overall-info'>
+                                <div>Overall Avg Delay: <span class='delay-metric'>{avg_delay_flight:.1f} min</span></div>
+                                <div>Overall Max Delay: <span class='delay-metric'>{max(all_delays_flight) if all_delays_flight else 0:.1f} min</span></div>
+                                <div>Overall Risk: <span class='risk-badge'>{badge({
+                                    "#70d86b": "Low Delay Risk",
+                                    "#fcca46": "Moderate Delay Risk",
+                                    "#f94144": "High Delay Risk",
+                                    "#6c757d": "No Data"
+                                }.get(box_border_color, "Unknown Risk"), box_border_color)}</span></div>
+                            </div>
+                        </div>
+                    """,
                 unsafe_allow_html=True,
             )
 
