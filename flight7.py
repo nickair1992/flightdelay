@@ -239,7 +239,7 @@ if st.button("Fetch Flights"):
     while valid < days_back and checked < 90:
         date_dt = datetime.utcnow() - timedelta(days=checked)
         checked += 1
-        flights = fetch_flights(origin, destination, date_dt.strftime("%Y-%m-%d"))
+        flights = fetch_flights(dep_icao, arr_icao, date_dt.strftime("%Y-%m-%d"))
         if not flights:
             continue
         valid += 1
