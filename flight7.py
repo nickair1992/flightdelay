@@ -10,16 +10,25 @@ import streamlit as st
 from PIL import Image
 
 # --------------------------- CONFIG --------------------------- #
-API_KEY = "4e95ec9db45cadd07a049a5766331f20"
+API_KEY = st.secrets["AVIATIONSTACK_API_KEY"]
 BASE_URL = "http://api.aviationstack.com/v1/flights"
 
-LOGO_ROOT = r"C:/Users/Nicky/Desktop/airlines-logos-dataset-master"
-LOGO_IMG_DIR = os.path.join(LOGO_ROOT, "images")
-LOGO_META = os.path.join(LOGO_ROOT, "airlines.json")
-
 # ------------------------ LOAD LOGO MAP ----------------------- #
-with open(LOGO_META, "r", encoding="utf-8") as f:
-    airline_json = json.load(f)["data"]
+GITHUB_USERNAME = "nickair1992"  # Replace with your GitHub username
+GITHUB_REPO_NAME = "flightdelay"        # Replace with your repository name
+GITHUB_BRANCH = "master"                   # Or "main" if that's your main branch
+AIRLINES_JSON_PATH = "airlines-logos-dataset-master/airlines.json"
+LOGO_IMAGE_PATH = "airlines-logos-dataset-master/images"
+AIRLINES_JSON_URL = f"https://raw.githubusercontent.com/{GITHUB_USERNAME}/{GITHUB_REPO_NAME}/{GITHUB_BRANCH}/{AIRLINES_JSON_PATH}"
+GITHUB_RAW_URL = f"https://raw.githubusercontent.com/{GITHUB_USERNAME}/{GITHUB_REPO_NAME}/{GITHUB_BRANCH}/{LOGO_IMAGE_PATH}/"
+
+try:
+    response = requests.get(AIRLINES_JSON_URL)
+    response.raise_for_status()  # Raise an exception for bad status codes
+    airline_json = response.json()["data"]
+except requests.exceptions.RequestException as e:
+    st.error(f"Error loading airlines.json from GitHub: {e}")
+    airline_json = []  # Initialize to an empty list in case of error
 
 airline_logos = {}
 for row in airline_json:
@@ -63,7 +72,7 @@ def delay_color(val):
         return "#f94144"  # Red
     if val >= 15:
         return "#fcca46"  # Yellow
-    return "#70d86b"      # Green
+    return "#70d86b"    # Green
 
 BADGE_COLORS = {"green": "#70d86b", "yellow": "#fcca46", "red": "#f94144", "grey": "#6c757d"}
 
@@ -71,11 +80,18 @@ def badge(label, clr):
     return f"<span style='background:{clr};padding:4px 8px;border-radius:6px;font-size:0.9rem;color:#fff;font-weight:500'>{label}</span>"
 
 def get_logo(code):
-    file = airline_logos.get(code.upper())
-    if not file:
+    file_name = airline_logos.get(code.upper())
+    if not file_name:
         return None
-    path = os.path.join(LOGO_IMG_DIR, file)
-    return Image.open(path) if os.path.exists(path) else None
+    image_url = GITHUB_RAW_URL + file_name
+    try:
+        response = requests.get(image_url, stream=True)
+        response.raise_for_status()
+        image = Image.open(io.BytesIO(response.content))
+        return image
+    except requests.exceptions.RequestException as e:
+        st.warning(f"Could not load logo for {code}: {e}")
+        return None
 
 def img_b64(img):
     buf = io.BytesIO()
@@ -291,18 +307,18 @@ if st.button("Fetch Flights"):
 
             st.markdown(
                 f"""
-                        <div class='overall-info'>
-                            <div>Overall Avg Delay: <span class='delay-metric'>{avg_delay_flight:.1f} min</span></div>
-                            <div>Overall Max Delay: <span class='delay-metric'>{max(all_delays_flight) if all_delays_flight else 0:.1f} min</span></div>
-                            <div>Overall Risk: <span class='risk-badge'>{badge({
-                                "#70d86b": "Low Delay Risk",
-                                "#fcca46": "Moderate Delay Risk",
-                                "#f94144": "High Delay Risk",
-                                "#6c757d": "No Data"
-                            }.get(box_border_color, "Unknown Risk"), box_border_color)}</span></div>
+                            <div class='overall-info'>
+                                <div>Overall Avg Delay: <span class='delay-metric'>{avg_delay_flight:.1f} min</span></div>
+                                <div>Overall Max Delay: <span class='delay-metric'>{max(all_delays_flight) if all_delays_flight else 0:.1f} min</span></div>
+                                <div>Overall Risk: <span class='risk-badge'>{badge({
+                                    "#70d86b": "Low Delay Risk",
+                                    "#fcca46": "Moderate Delay Risk",
+                                    "#f94144": "High Delay Risk",
+                                    "#6c757d": "No Data"
+                                }.get(box_border_color, "Unknown Risk"), box_border_color)}</span></div>
+                            </div>
                         </div>
-                    </div>
-                """,
+                    """,
                 unsafe_allow_html=True,
             )
 
