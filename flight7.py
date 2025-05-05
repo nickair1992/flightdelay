@@ -360,7 +360,7 @@ if st.button("Fetch Flights"):
             avg_delay_flight = avg(all_delays_flight)
             box_border_color = delay_color(avg_delay_flight)
             # Assuming the airline code is the same for all flights of an airline for logo retrieval
-            first_airline_code = next(iter(schedules.values())))['airline_code'] if schedules else None
+            first_airline_code = next(iter(schedules.values()))['airline_code'] if schedules else None
             logo_img = get_logo(first_airline_code)
             logo_html = f"<img src='data:image/png;base64,{img_b64(logo_img)}' class='airline-logo' style='margin-right: 10px;'>" if logo_img else ""
 
