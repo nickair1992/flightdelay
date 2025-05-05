@@ -11,21 +11,23 @@ from PIL import Image
 from fuzzywuzzy import process
 
 def airport_selector(label):
-    st.markdown(f"**{label}**")
-    search_input = st.text_input(f"{label} - Search by city, IATA, or ICAO", key=label)
+    # Text input for typing
+    search_input = st.text_input(f"{label} (Search city, IATA, or ICAO)", key=label)
 
+    # If something is typed, filter the airport list
     if search_input:
-        choices = airports_df["label"].tolist()
-        matches = process.extract(search_input, choices, limit=10)
-        options = [match[0] for match in matches]
+        filtered_df = airports_df[airports_df["label"].str.contains(search_input, case=False, na=False)]
     else:
-        options = airports_df["label"].tolist()
+        filtered_df = airports_df
+
+    options = filtered_df["label"].tolist()
 
     if not options:
         st.warning("No matching airports.")
         return "", ""
 
-    selected = st.selectbox(f"Matching results for {label}", options, key=f"select_{label}")
+    # Show filtered dropdown below the text box
+    selected = st.selectbox("", options, key=f"select_{label}")
 
     try:
         code_part = selected.split("(")[-1].split(")")[0]
@@ -33,6 +35,7 @@ def airport_selector(label):
         return iata, icao
     except:
         return "", ""
+
 
 import pandas as pd
 
