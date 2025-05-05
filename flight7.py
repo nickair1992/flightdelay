@@ -59,7 +59,7 @@ def airport_selector(label):
     try:
         code_part = selected.split("(")[-1].split(")")[0]
         iata, icao = [x.strip() for x in code_part.split("/")]
-        return iata, icao
+        return icao, iata
     except:
         return "", ""
 
